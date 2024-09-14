@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -8,32 +10,8 @@ import { Form, FormField, FormItem, FormLabel, FormControl } from "@/components/
 import { useForm } from "react-hook-form"
 import { addReminder, updateReminder, deleteReminder, getReminders } from '@/lib/calendarApi'
 import { getAIResponse } from '@/lib/aiApi'
-import { addEvent, updateEvent, deleteEvent, getEvents } from '@/lib/googleCalendarApi'
-import { processNaturalLanguage } from '@/lib/nlpProcessor'
-import natural from 'natural'
 
-const tokenizer = new natural.WordTokenizer()
-const dateParser = new natural.DateParse()
-
-export function processNaturalLanguage(text) {
-  const tokens = tokenizer.tokenize(text.toLowerCase())
-  const date = dateParser.parse(text)
-
-  let time = '12:00' // Default time
-  const timeRegex = /(\d{1,2}):(\d{2})/
-  const timeMatch = text.match(timeRegex)
-  if (timeMatch) {
-    time = timeMatch[0]
-  }
-
-  return {
-    date: date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    time: time,
-    text: text,
-  }
-}
-
-export default function VoiceCalendarAssistant() {
+export function App() {
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [reminders, setReminders] = useState([])
@@ -42,7 +20,6 @@ export default function VoiceCalendarAssistant() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const recognitionRef = useRef(null)
   const form = useForm()
-  const [events, setEvents] = useState([])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -92,18 +69,18 @@ export default function VoiceCalendarAssistant() {
   const handleSubmit = async () => {
     setIsLoading(true)
     try {
-      // Process the transcript with NLP
-      const { date, time, text } = await processNaturalLanguage(transcript)
+      // Process the transcript with NLP to extract date, time, and reminder text
+      const { date, time, text } = processTranscript(transcript)
       
-      // Add event to Google Calendar
-      await addEvent({ date, time, text })
+      // Add reminder to calendar
+      await addReminder({ date, time, text })
       
       // Get AI response
       const aiResp = await getAIResponse(transcript)
       setAiResponse(aiResp)
       
-      // Reload events
-      await loadEvents()
+      // Reload reminders
+      await loadReminders()
       
       setTranscript('')
     } catch (error) {
@@ -129,19 +106,18 @@ export default function VoiceCalendarAssistant() {
     await loadReminders()
   }
 
-  const loadEvents = async () => {
-    const fetchedEvents = await getEvents()
-    setEvents(fetchedEvents)
-  }
-
-  const handleUpdateEvent = async (id, data) => {
-    await updateEvent(id, data)
-    await loadEvents()
-  }
-
-  const handleDeleteEvent = async (id) => {
-    await deleteEvent(id)
-    await loadEvents()
+  const processTranscript = (transcript) => {
+    // This is a placeholder for more advanced NLP
+    // In a real app, you'd use a library like compromise or natural
+    const words = transcript.split(' ')
+    const dateIndex = words.indexOf('on')
+    const timeIndex = words.indexOf('at')
+    
+    return {
+      date: dateIndex !== -1 ? words[dateIndex + 1] : new Date().toISOString().split('T')[0],
+      time: timeIndex !== -1 ? words[timeIndex + 1] : '12:00',
+      text: transcript
+    }
   }
 
   return (
@@ -222,48 +198,6 @@ export default function VoiceCalendarAssistant() {
           </CardHeader>
           <CardContent>
             <p>{aiResponse}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Events</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul>
-              {events.map((event) => (
-                <li key={event.id} className="mb-2">
-                  {event.summary}
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="ml-2">Edit</Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Edit Event</DialogTitle>
-                      </DialogHeader>
-                      <Form {...form}>
-                        <form onSubmit={form.handleSubmit((data) => handleUpdateEvent(event.id, data))}>
-                          <FormField
-                            control={form.control}
-                            name="summary"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Event</FormLabel>
-                                <FormControl>
-                                  <Input {...field} defaultValue={event.summary} />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <Button type="submit">Update</Button>
-                        </form>
-                      </Form>
-                    </DialogContent>
-                  </Dialog>
-                  <Button variant="destructive" size="sm" className="ml-2" onClick={() => handleDeleteEvent(event.id)}>Delete</Button>
-                </li>
-              ))}
-            </ul>
           </CardContent>
         </Card>
       </div>
